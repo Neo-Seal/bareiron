@@ -1,8 +1,21 @@
-# This file is meant for use with ESP-IDF or PlatformIO.
-# Compilation for other platforms must be done manually.
 
-FILE(GLOB_RECURSE app_sources ${CMAKE_SOURCE_DIR}/src/*.*)
+file(GLOB_RECURSE app_sources
+    "${CMAKE_CURRENT_LIST_DIR}/*.c"
+)
 
-idf_component_register(SRCS ${app_sources}
-  PRIV_REQUIRES esp_wifi nvs_flash esp_timer
-  INCLUDE_DIRS ".")
+idf_component_register(
+    SRCS ${app_sources}
+
+    PRIV_REQUIRES
+        freertos
+        esp_wifi
+        esp_event
+        esp_netif
+        nvs_flash
+        esp_timer
+        lwip
+
+    INCLUDE_DIRS
+        "."
+        "../include"
+)
