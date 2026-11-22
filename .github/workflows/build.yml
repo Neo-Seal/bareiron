@@ -1,16 +1,14 @@
-name: Build with Cosmopolitan
+
+name: Generate Minecraft Registries
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  generate:
     runs-on: ubuntu-24.04
 
     steps:
@@ -22,40 +20,39 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Download cosmocc
+      - name: Install Java 24
         run: |
-          curl -LO https://cosmo.zip/pub/cosmocc/cosmocc.zip
-          unzip cosmocc.zip -d cosmocc
-          echo "$PWD/cosmocc/bin" >> $GITHUB_PATH
+          curl -fL -o jdk.tar.gz \
+            https://download.java.net/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_linux-x64_bin.tar.gz
+          tar -xzf jdk.tar.gz
 
-      - name: Install JDK 24
+      - name: Generate Minecraft data
         run: |
-          curl -LO https://download.java.net/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_linux-x64_bin.tar.gz
-          tar -xzf openjdk-24.0.2_linux-x64_bin.tar.gz
-
-      - name: Dump Minecraft server registries
-        run: |
-          mkdir notchian
+          mkdir -p notchian
           cd notchian
-          curl -Lo server.jar https://piston-data.mojang.com/v1/objects/6bce4ef400e4efaa63a13d5e6f6b500be969ef81/server.jar
+
+          curl -fL -o server.jar \
+            https://piston-data.mojang.com/v1/objects/6bce4ef400e4efaa63a13d5e6f6b500be969ef81/server.jar
+
           echo "eula=true" > eula.txt
-          ../jdk-24.0.2/bin/java -DbundlerMainClass="net.minecraft.data.Main" -jar server.jar --all
 
-      - name: Generate registry headers
+          ../jdk-24.0.2/bin/java \
+            -DbundlerMainClass="net.minecraft.data.Main" \
+            -jar server.jar --all
+
+      - name: Generate C registry files
+        run: bun run build_registries.js
+
+      - name: Save generated files to GitHub
         run: |
-          bun run build_registries.js
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Build project
-        run: |
-          cosmocc src/*.c -O2 -Iinclude -o bareiron.exe
+          git add src/registries.c include/registries.h
 
-      - name: Upload release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: latest
-          name: Latest build
-          body: "This is a rolling release of bareiron, compiled from the latest commit on the main branch.\n\nThe executable (`bareiron.exe`) is a Cosmopolitan-built polyglot, and should run on Windows and Linux (and Mac?), despite the file extension."
-          files: bareiron.exe
-          prerelease: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          if ! git diff --cached --quiet; then
+            git commit -m "Generate Minecraft 1.21.8 registries"
+            git push
+          else
+            echo "Registry files are already up to date."
+          fi
